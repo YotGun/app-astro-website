@@ -1,50 +1,208 @@
 ---
-import BaseHead from '../components/BaseHead.astro';
-import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
+import Layout from '../layouts/Layout.astro';
 import { SITE_TITLE, SITE_DESCRIPTION } from '../consts';
 ---
 
-<!doctype html>
-<html lang="en">
-	<head>
-		<BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
-	</head>
-	<body>
-		<Header />
-		<main>
-			<h1>🧑‍🚀 Hello, Astronaut!</h1>
-			<p>
-				Welcome to the official <a href="https://astro.build/">Astro</a> blog starter template. This
-				template serves as a lightweight, minimally-styled starting point for anyone looking to build
-				a personal website, blog, or portfolio with Astro.
-			</p>
-			<p>
-				This template comes with a few integrations already configured in your
-				<code>astro.config.mjs</code> file. You can customize your setup with
-				<a href="https://astro.build/integrations">Astro Integrations</a> to add tools like Tailwind,
-				React, or Vue to your project.
-			</p>
-			<p>Here are a few ideas on how to get started with the template:</p>
-			<ul>
-				<li>Edit this page in <code>src/pages/index.astro</code></li>
-				<li>Edit the site header items in <code>src/components/Header.astro</code></li>
-				<li>Add your name to the footer in <code>src/components/Footer.astro</code></li>
-				<li>Check out the included blog posts in <code>src/content/blog/</code></li>
-				<li>Customize the blog post page layout in <code>src/layouts/BlogPost.astro</code></li>
-			</ul>
-			<p>
-				Have fun! If you get stuck, remember to <a href="https://docs.astro.build/"
-					>read the docs
-				</a> or <a href="https://astro.build/chat">join us on Discord</a> to ask questions.
-			</p>
-			<p>
-				Looking for a blog template with a bit more personality? Check out <a
-					href="https://github.com/Charca/astro-blog-template"
-					>astro-blog-template
-				</a> by <a href="https://twitter.com/Charca">Maxi Ferreira</a>.
-			</p>
-		</main>
-		<Footer />
-	</body>
-</html>
+<Layout title={SITE_TITLE} description={SITE_DESCRIPTION}>
+	<main id="main">
+		<h1>BSc. Computing Science<br>
+			Minor in Mathematics</h1>
+		<a href="https://www.ualberta.ca/en/index.html" target="_blank" class="uni">
+			<h2>University of Alberta | 2023 - 2027
+			</h2>
+		</a>
+		<div class="links">
+			<a href="https://github.com/YotGun" target="_blank" class="github">
+				<img src="/icons/github.svg" alt="GitHub" class="github-icon">
+			</a>
+			<a href="https://www.linkedin.com/in/reganvrn/" target="_blank" class="linkedin">
+				<img src="/icons/linkedin.svg" alt="LinkedIn" class="linkedin-icon">
+			</a>
+			<a href="mailto:regan.ng@ualberta.ca" target="_blank" class="email">
+				<img src="/icons/email.svg" alt="Email" class="email-icon">
+			</a>
+		</div>
+	</main>
+
+	<section id="about" class="placeholder-section" aria-label="About">
+		<h2 class="sr-only">About</h2>
+	</section>
+	<section id="sample1" class="placeholder-section" aria-label="Sample1">
+		<h2 class="sr-only">Sample1</h2>
+	</section>
+	<section id="sample1" class="placeholder-section" aria-label="Sample2">
+		<h2 class="sr-only">Sample2</h2>
+	</section>
+</Layout>
+
+<style>
+	main {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: flex-start;
+		box-sizing: border-box;
+		width: 100%;
+		max-width: 100%;
+		min-height: 100vh;
+		min-height: 100svh;
+		min-height: 100dvh;
+		padding-top: 4.5rem;
+		padding-bottom: 2.5rem;
+		padding-inline: clamp(1rem, 10vw, 10rem);
+		overscroll-behavior-y: none;
+		background: var(--bg);
+	}
+
+	main h1 {
+		font-family: 'JetBrains Mono', monospace;
+		font-style: italic;
+		font-size: clamp(1.85rem, 4vw, 4.25rem);
+		font-weight: 400;
+		letter-spacing: -0.02em;
+		line-height: 1.2;
+		color: var(--text);
+		margin: 0;
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.uni {
+		display: block;
+		margin-top: 0.35em;
+		font-family: 'JetBrains Mono Thin', monospace;
+		font-style: italic;
+		font-size: clamp(0.95rem, 2vw, 2.15rem);
+		font-weight: 400;
+		color: var(--text-muted);
+		min-width: 0;
+		max-width: 100%;
+		transition: color 0.3s ease;
+	}
+
+	.uni h2 {
+		margin: 0;
+		font: inherit;
+	}
+
+	.uni:hover {
+		cursor: pointer;
+		color: var(--blue);
+		transition: color 0.3s ease;
+	}
+
+	.links {
+		margin-top: clamp(1.5rem, 12vh, 6.5rem);
+		display: flex;
+		flex-direction: row;
+		justify-content: flex-start;
+		align-items: center;
+		gap: clamp(0.75rem, 2vw, 2rem);
+		filter: invert(1);
+	}
+
+	.links a {
+		display: block;
+		flex: 0 0 auto;
+		width: clamp(1.75rem, 3vw, 2.75rem);
+		height: clamp(1.75rem, 3vw, 2.75rem);
+		overflow: hidden;
+	}
+
+	.links a.email {
+		width: auto;
+		overflow: visible;
+	}
+
+	.github:hover, .linkedin:hover {
+		cursor: pointer;
+		filter: brightness(0) saturate(100%) invert(43%) sepia(95%) saturate(2136%) hue-rotate(22deg) brightness(97%) contrast(99%);
+		transition: filter 0.3s ease;
+	}
+
+	.github-icon, .linkedin-icon, .email-icon {
+		display: block;
+		width: 100%;
+		height: 100%;
+		max-width: 100%;
+		max-height: 100%;
+		min-width: 0;
+		min-height: 0;
+		object-fit: contain;
+	}
+	
+	.email {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
+	.email-icon {
+		width: clamp(1.75rem, 3vw, 2.75rem);
+		height: clamp(1.75rem, 3vw, 2.75rem);
+		flex-shrink: 0;
+		transition: opacity 0.3s ease;
+	}
+
+	.email::after {
+		content: "personal@regan.ng";
+		position: absolute;
+		left: 0;
+		top: 50%;
+		translate: 0 -50%;
+		opacity: 0;
+		font-family: 'JetBrains Mono Thin', monospace;
+		font-style: italic;
+		font-size: clamp(0.95rem, 2vw, 2.15rem);
+		font-weight: 400;
+		line-height: 1;
+		white-space: nowrap;
+		filter: invert(1);
+		color: var(--text);
+		pointer-events: none;
+		transition: opacity 0.3s ease;
+	}
+
+	.email:hover .email-icon {
+		opacity: 0;
+	}
+
+	.email:hover::after {
+		opacity: 1;
+	}
+
+	.placeholder-section {
+		min-height: 100dvh;
+		scroll-margin-top: 4rem;
+	}
+
+	@media (max-width: 640px) {
+		main {
+			padding-inline: 1.25rem;
+		}
+
+		.links {
+			margin-top: clamp(1.25rem, 8vh, 3.5rem);
+		}
+	}
+
+	@media (max-height: 520px) {
+		main {
+			padding-top: 4rem;
+			padding-bottom: 1.25rem;
+		}
+
+		.links {
+			margin-top: 1.25rem;
+		}
+	}
+
+	@media (orientation: portrait) {
+		main {
+			justify-content: flex-start;
+			padding-top: 12vh;
+			padding-bottom: 12vh;
+		}
+	}
+
+</style>
