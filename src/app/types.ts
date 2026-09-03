@@ -23,13 +23,17 @@ export type Note = NoteMeta & {
 export type VaultFile = {
 	id: string;
 	note_id: string | null;
+	folder_id: string | null;
 	r2_key: string;
 	name: string;
 	mime: string;
 	size: number;
 	created_at: number;
+	updated_at: number;
 };
 
 export type ViewMode = 'edit' | 'split' | 'preview';
 export type Theme = 'dark' | 'light';
-export type LibraryFilter = 'all' | 'video' | 'image' | 'pdf' | 'other';
+export type AppMode = 'notes' | 'drive';
+export type LibraryFilter = 'all' | 'image' | 'video' | 'audio' | 'pdf' | 'other';
+export type DriveLayout = 'grid' | 'list';

@@ -9,9 +9,10 @@ import {
 	type ReactNode,
 } from 'react';
 import { api, uploadBytes } from './api';
+import { dialog } from './components/Dialog';
 import { cacheList, cacheNoteBody, db } from './db';
 import { deriveTitle, parseFrontmatter } from './markdown';
-import type { Folder, Note, NoteMeta, Theme, VaultFile, ViewMode } from './types';
+import type { AppMode, DriveLayout, Folder, Note, NoteMeta, Theme, VaultFile, ViewMode } from './types';
 
 type VaultContextValue = {
 	folders: Folder[];
@@ -25,6 +26,9 @@ type VaultContextValue = {
 	sidebarOpen: boolean;
 	rightOpen: boolean;
 	libraryOpen: boolean;
+	appMode: AppMode;
+	driveFolderId: string | null;
+	driveLayout: DriveLayout;
 	paletteOpen: boolean;
 	query: string;
 	searchHits: Set<string> | null;
@@ -39,6 +43,9 @@ type VaultContextValue = {
 	setSidebarOpen: (open: boolean) => void;
 	setRightOpen: (open: boolean) => void;
 	setLibraryOpen: (open: boolean) => void;
+	setAppMode: (mode: AppMode) => void;
+	setDriveFolderId: (id: string | null) => void;
+	setDriveLayout: (layout: DriveLayout) => void;
 	setPaletteOpen: (open: boolean) => void;
 	setQuery: (q: string) => void;
 	updateBody: (body: string) => void;
@@ -50,7 +57,12 @@ type VaultContextValue = {
 	createFolder: (parentId?: string | null) => Promise<void>;
 	renameFolder: (id: string, name: string) => Promise<void>;
 	deleteFolder: (id: string) => Promise<void>;
-	uploadFiles: (list: FileList | File[], noteId?: string | null) => Promise<void>;
+	uploadFiles: (
+		list: FileList | File[],
+		opts?: { noteId?: string | null; folderId?: string | null },
+	) => Promise<void>;
+	renameFile: (id: string, name: string) => Promise<void>;
+	moveFile: (id: string, folderId: string | null) => Promise<void>;
 	deleteFile: (id: string) => Promise<void>;
 	refresh: () => Promise<void>;
 };
@@ -75,7 +87,16 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 	const [theme, setTheme] = useState<Theme>(readTheme);
 	const [sidebarOpen, setSidebarOpen] = useState(true);
 	const [rightOpen, setRightOpen] = useState(true);
-	const [libraryOpen, setLibraryOpen] = useState(false);
+	const [libraryOpen, setLibraryOpen] = useState(
+		() => typeof localStorage !== 'undefined' && localStorage.getItem('vault-mode') === 'drive',
+	);
+	const [appMode, setAppModeState] = useState<AppMode>(
+		() => (typeof localStorage !== 'undefined' && localStorage.getItem('vault-mode') === 'drive' ? 'drive' : 'notes'),
+	);
+	const [driveFolderId, setDriveFolderId] = useState<string | null>(null);
+	const [driveLayout, setDriveLayoutState] = useState<DriveLayout>(
+		() => (typeof localStorage !== 'undefined' && localStorage.getItem('vault-drive-layout') === 'list' ? 'list' : 'grid'),
+	);
 	const [paletteOpen, setPaletteOpen] = useState(false);
 	const [query, setQuery] = useState('');
 	const [searchHits, setSearchHits] = useState<Set<string> | null>(null);
@@ -159,7 +180,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 	const selectNote = useCallback(async (id: string | null) => {
 		setSelectedNoteId(id);
 		setSelectedFileId(null);
+		setAppModeState('notes');
 		setLibraryOpen(false);
+		localStorage.setItem('vault-mode', 'notes');
 		if (!id) return;
 		if (bodiesRef.current[id]) return;
 		const cached = await db.notes.get(id);
@@ -288,6 +311,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 			await db.notes.put({ ...note, dirty: 0 });
 			setSelectedNoteId(note.id);
 			setLibraryOpen(false);
+			setAppModeState('notes');
+			localStorage.setItem('vault-mode', 'notes');
 		},
 		[],
 	);
@@ -332,7 +357,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	const createFolder = useCallback(async (parentId?: string | null) => {
-		const name = window.prompt('Folder name', 'New folder');
+		const name = await dialog.prompt('New folder', 'New folder', {
+			message: 'Give the folder a name.',
+			confirmLabel: 'Create',
+		});
 		if (!name) return;
 		const folder = await api.createFolder({ name, parent_id: parentId ?? null });
 		setFolders((prev) => [...prev, folder].sort((a, b) => a.name.localeCompare(b.name)));
@@ -349,22 +377,44 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		setNotes((prev) =>
 			prev.map((n) => (n.folder_id === id ? { ...n, folder_id: null } : n)),
 		);
-	}, []);
+		setFiles((prev) =>
+			prev.map((f) => (f.folder_id === id ? { ...f, folder_id: null } : f)),
+		);
+		if (driveFolderId === id) setDriveFolderId(null);
+	}, [driveFolderId]);
 
 	const uploadFiles = useCallback(
-		async (list: FileList | File[], noteId?: string | null) => {
+		async (
+			list: FileList | File[],
+			opts?: { noteId?: string | null; folderId?: string | null },
+		) => {
 			const filesArr = [...list];
-			for (const file of filesArr) {
+			const noteId = opts && 'noteId' in opts ? opts.noteId : appMode === 'notes' ? selectedNoteId : null;
+			const folderId =
+				opts?.folderId !== undefined
+					? opts.folderId
+					: appMode === 'drive'
+						? driveFolderId
+						: notesRef.current.find((n) => n.id === noteId)?.folder_id ?? null;
+			for (const [index, file] of filesArr.entries()) {
 				try {
+					setStatus(`Uploading ${index + 1}/${filesArr.length} · ${file.name}`);
 					const created = await api.initFile({
 						name: file.name,
 						mime: file.type || 'application/octet-stream',
 						size: file.size,
-						note_id: noteId ?? selectedNoteId,
+						note_id: noteId ?? null,
+						folder_id: folderId ?? null,
 					});
 					await uploadBytes(created.id, file, file.type || 'application/octet-stream');
 					setFiles((prev) => [
-						{ ...created, note_id: noteId ?? selectedNoteId ?? null, size: file.size },
+						{
+							...created,
+							note_id: noteId ?? null,
+							folder_id: folderId ?? null,
+							size: file.size,
+							updated_at: Date.now(),
+						},
 						...prev.filter((f) => f.id !== created.id),
 					]);
 					setStatus(`Uploaded ${file.name}`);
@@ -373,8 +423,18 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 				}
 			}
 		},
-		[selectedNoteId],
+		[appMode, driveFolderId, selectedNoteId],
 	);
+
+	const renameFile = useCallback(async (id: string, name: string) => {
+		const saved = await api.updateFile(id, { name });
+		setFiles((prev) => prev.map((f) => (f.id === id ? saved : f)));
+	}, []);
+
+	const moveFile = useCallback(async (id: string, folderId: string | null) => {
+		const saved = await api.updateFile(id, { folder_id: folderId });
+		setFiles((prev) => prev.map((f) => (f.id === id ? saved : f)));
+	}, []);
 
 	const deleteFile = useCallback(async (id: string) => {
 		await api.deleteFile(id);
@@ -401,6 +461,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		sidebarOpen,
 		rightOpen,
 		libraryOpen,
+		appMode,
+		driveFolderId,
+		driveLayout,
 		paletteOpen,
 		query,
 		searchHits,
@@ -415,7 +478,21 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		toggleTheme: () => applyTheme(theme === 'dark' ? 'light' : 'dark'),
 		setSidebarOpen,
 		setRightOpen,
-		setLibraryOpen,
+		setLibraryOpen: (open: boolean) => {
+			setLibraryOpen(open);
+			setAppModeState(open ? 'drive' : 'notes');
+			localStorage.setItem('vault-mode', open ? 'drive' : 'notes');
+		},
+		setAppMode: (mode: AppMode) => {
+			setAppModeState(mode);
+			setLibraryOpen(mode === 'drive');
+			localStorage.setItem('vault-mode', mode);
+		},
+		setDriveFolderId,
+		setDriveLayout: (layout: DriveLayout) => {
+			setDriveLayoutState(layout);
+			localStorage.setItem('vault-drive-layout', layout);
+		},
 		setPaletteOpen,
 		setQuery,
 		updateBody,
@@ -428,6 +505,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		renameFolder,
 		deleteFolder,
 		uploadFiles,
+		renameFile,
+		moveFile,
 		deleteFile,
 		refresh,
 	};

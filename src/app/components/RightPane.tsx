@@ -1,7 +1,9 @@
 import { fileContentUrl } from '../api';
 import { useVault } from '../VaultProvider';
+import { fileKind } from '../format';
 import { extractOutline } from '../markdown';
-import { IconClose, IconFile, IconTrash } from './Icons';
+import { dialog } from './Dialog';
+import { IconClose, IconDownload, IconTrash, kindIcon } from './Icons';
 
 export function RightPane() {
 	const {
@@ -10,8 +12,8 @@ export function RightPane() {
 		selectedFileId,
 		selectFile,
 		deleteFile,
+		appMode,
 		rightOpen,
-		libraryOpen,
 	} = useVault();
 
 	if (!rightOpen) return null;
@@ -33,14 +35,18 @@ export function RightPane() {
 					<Media file={selected} />
 				</div>
 			)}
-			{!libraryOpen && (
+			{appMode !== 'drive' && (
 				<>
 					<section>
 						<h3>Outline</h3>
 						{outline.length === 0 && <p className="muted">Headings will appear here.</p>}
 						<ul className="outline">
 							{outline.map((item) => (
-								<li key={`${item.id}-${item.level}`} style={{ paddingLeft: (item.level - 1) * 12 }}>
+								<li
+									key={`${item.id}-${item.level}`}
+									className={`outline-l${item.level}`}
+									style={{ paddingLeft: (item.level - 1) * 12 }}
+								>
 									<a href={`#${item.id}`}>{item.text}</a>
 								</li>
 							))}
@@ -50,23 +56,32 @@ export function RightPane() {
 						<h3>Attachments</h3>
 						{attached.length === 0 && <p className="muted">Drop files onto the editor.</p>}
 						<ul className="file-list">
-							{attached.map((file) => (
-								<li key={file.id}>
-									<button type="button" className="file-item" onClick={() => selectFile(file.id)}>
-										<IconFile />
-										<span>{file.name}</span>
-									</button>
-									<button
-										type="button"
-										className="icon-btn danger"
-										onClick={() => {
-											if (window.confirm(`Delete ${file.name}?`)) void deleteFile(file.id);
-										}}
-									>
-										<IconTrash />
-									</button>
-								</li>
-							))}
+							{attached.map((file) => {
+								const KindIcon = kindIcon(fileKind(file.mime, file.name));
+								return (
+									<li key={file.id}>
+										<button type="button" className="file-item" onClick={() => selectFile(file.id)}>
+											<KindIcon />
+											<span>{file.name}</span>
+										</button>
+										<button
+											type="button"
+											className="icon-btn danger"
+											title="Delete file"
+											onClick={async () => {
+												const ok = await dialog.confirm(`Delete “${file.name}”?`, {
+													message: 'The file will be removed from storage permanently.',
+													confirmLabel: 'Delete file',
+													danger: true,
+												});
+												if (ok) void deleteFile(file.id);
+											}}
+										>
+											<IconTrash />
+										</button>
+									</li>
+								);
+							})}
 						</ul>
 					</section>
 				</>
@@ -90,8 +105,9 @@ export function Media({ file }: { file: { id: string; name: string; mime: string
 		return <iframe className="media pdf-frame" title={file.name} src={src} />;
 	}
 	return (
-		<a className="download" href={src} target="_blank" rel="noreferrer">
-			Open {file.name}
+		<a className="download" href={fileContentUrl(file.id, true)}>
+			<IconDownload />
+			<span>Download {file.name}</span>
 		</a>
 	);
 }

@@ -29,7 +29,7 @@ export function MarkdownPreview({
 	return (
 		<div
 			ref={ref}
-			className="preview prose"
+			className="preview"
 			onClick={(event) => {
 				const target = event.target as HTMLElement;
 				const link = target.closest('a.wiki-link') as HTMLAnchorElement | null;
@@ -38,7 +38,8 @@ export function MarkdownPreview({
 				const id = link.hash.replace('#note:', '');
 				if (id) onOpenNote(id);
 			}}
-			dangerouslySetInnerHTML={{ __html: html }}
-		/>
+		>
+			<article className="prose" dangerouslySetInnerHTML={{ __html: html }} />
+		</div>
 	);
 }

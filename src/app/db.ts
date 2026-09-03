@@ -15,6 +15,11 @@ class VaultDB extends Dexie {
 			folders: 'id, parent_id, name',
 			files: 'id, note_id, created_at',
 		});
+		this.version(2).stores({
+			notes: 'id, folder_id, updated_at, dirty',
+			folders: 'id, parent_id, name',
+			files: 'id, note_id, folder_id, created_at',
+		});
 	}
 }
 

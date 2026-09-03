@@ -2,7 +2,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirro
 import { markdown } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { searchKeymap } from '@codemirror/search';
-import { EditorState } from '@codemirror/state';
+import { Annotation, EditorState } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView, highlightActiveLine, keymap, lineNumbers, placeholder } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
@@ -42,6 +42,10 @@ const darkTheme = EditorView.theme({
 	'.cm-scroller': { overflow: 'auto' },
 });
 
+/** Marks doc updates that came from props rather than the user, so syncing a
+ *  freshly fetched note body does not mark it dirty and trigger an autosave. */
+const External = Annotation.define<boolean>();
+
 export function CodeEditor({
 	value,
 	onChange,
@@ -67,7 +71,9 @@ export function CodeEditor({
 			placeholder('Start writing…'),
 			EditorView.lineWrapping,
 			EditorView.updateListener.of((update) => {
-				if (update.docChanged) onChangeRef.current(update.state.doc.toString());
+				if (!update.docChanged) return;
+				if (update.transactions.some((tr) => tr.annotation(External))) return;
+				onChangeRef.current(update.state.doc.toString());
 			}),
 			theme === 'dark' ? oneDark : [lightTheme, syntaxHighlighting(lightHighlight)],
 			theme === 'dark' ? darkTheme : [],
@@ -91,6 +97,7 @@ export function CodeEditor({
 		if (view.state.doc.toString() === value) return;
 		view.dispatch({
 			changes: { from: 0, to: view.state.doc.length, insert: value },
+			annotations: External.of(true),
 		});
 	}, [value]);
 

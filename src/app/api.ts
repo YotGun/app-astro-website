@@ -46,9 +46,23 @@ export const api = {
 		request<{ files: import('./types').VaultFile[] }>(
 			noteId ? `/api/files?note_id=${encodeURIComponent(noteId)}` : '/api/files',
 		),
-	initFile: (body: { name: string; mime: string; size: number; note_id?: string | null }) =>
+	initFile: (body: {
+		name: string;
+		mime: string;
+		size: number;
+		note_id?: string | null;
+		folder_id?: string | null;
+	}) =>
 		request<import('./types').VaultFile & { max_single_bytes: number }>('/api/files', {
 			method: 'POST',
+			body: JSON.stringify(body),
+		}),
+	updateFile: (
+		id: string,
+		body: { name?: string; folder_id?: string | null; note_id?: string | null },
+	) =>
+		request<import('./types').VaultFile>(`/api/files/${id}`, {
+			method: 'PATCH',
 			body: JSON.stringify(body),
 		}),
 	deleteFile: (id: string) => request<{ ok: boolean }>(`/api/files/${id}`, { method: 'DELETE' }),
@@ -56,8 +70,8 @@ export const api = {
 		request<{ notes: import('./types').NoteMeta[] }>(`/api/search?q=${encodeURIComponent(q)}`),
 };
 
-export function fileContentUrl(id: string): string {
-	return `/api/files/${id}/content`;
+export function fileContentUrl(id: string, download = false): string {
+	return download ? `/api/files/${id}/content?download=1` : `/api/files/${id}/content`;
 }
 
 export async function uploadBytes(id: string, file: Blob, mime: string): Promise<void> {

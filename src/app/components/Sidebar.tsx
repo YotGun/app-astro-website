@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useVault } from '../VaultProvider';
 import type { Folder, NoteMeta } from '../types';
+import { dialog } from './Dialog';
 import {
 	IconFolder,
 	IconNote,
+	IconPencil,
 	IconPlus,
 	IconSearch,
 	IconTrash,
+	IconUnfile,
 	IconUpload,
 } from './Icons';
 
@@ -28,6 +31,10 @@ export function Sidebar() {
 		moveNote,
 		uploadFiles,
 		sidebarOpen,
+		appMode,
+		setAppMode,
+		driveFolderId,
+		setDriveFolderId,
 	} = useVault();
 	const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -43,20 +50,42 @@ export function Sidebar() {
 
 	return (
 		<aside className="sidebar">
+			<div className="mode-switch">
+				<button
+					type="button"
+					className={appMode === 'notes' ? 'active' : ''}
+					onClick={() => setAppMode('notes')}
+				>
+					Notes
+				</button>
+				<button
+					type="button"
+					className={appMode === 'drive' ? 'active' : ''}
+					onClick={() => setAppMode('drive')}
+				>
+					Drive
+				</button>
+			</div>
 			<div className="sidebar-search">
 				<IconSearch />
 				<input
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
-					placeholder="Search notes"
-					aria-label="Search notes"
+					placeholder={appMode === 'drive' ? 'Search vault' : 'Search notes'}
+					aria-label="Search"
 				/>
 			</div>
 			<div className="sidebar-actions">
-				<button type="button" onClick={() => void createNote(null)}>
-					<IconPlus /> Note
-				</button>
-				<button type="button" onClick={() => void createFolder(null)}>
+				{appMode === 'notes' ? (
+					<button type="button" onClick={() => void createNote(null)}>
+						<IconPlus /> Note
+					</button>
+				) : (
+					<button type="button" onClick={() => setDriveFolderId(null)}>
+						My Drive
+					</button>
+				)}
+				<button type="button" onClick={() => void createFolder(appMode === 'drive' ? driveFolderId : null)}>
 					<IconPlus /> Folder
 				</button>
 				<label className="upload-btn">
@@ -67,7 +96,12 @@ export function Sidebar() {
 						multiple
 						hidden
 						onChange={(e) => {
-							if (e.target.files?.length) void uploadFiles(e.target.files);
+							if (e.target.files?.length) {
+								void uploadFiles(e.target.files, {
+									folderId: appMode === 'drive' ? driveFolderId : undefined,
+									noteId: appMode === 'drive' ? null : undefined,
+								});
+							}
 							e.target.value = '';
 						}}
 					/>
@@ -79,7 +113,7 @@ export function Sidebar() {
 						key={folder.id}
 						folder={folder}
 						folders={folders}
-						notes={visibleNotes}
+						notes={appMode === 'notes' ? visibleNotes : []}
 						collapsed={collapsed}
 						setCollapsed={setCollapsed}
 						selectedNoteId={selectedNoteId}
@@ -91,9 +125,11 @@ export function Sidebar() {
 						deleteNote={deleteNote}
 						renameNote={renameNote}
 						moveNote={moveNote}
+						driveFolderId={driveFolderId}
+						onOpenFolder={appMode === 'drive' ? setDriveFolderId : undefined}
 					/>
 				))}
-				{unfiled.length > 0 && (
+				{appMode === 'notes' && unfiled.length > 0 && (
 					<div className="tree-section">
 						<div className="tree-label">Unfiled</div>
 						{unfiled.map((note) => (
@@ -128,6 +164,8 @@ function FolderNode({
 	deleteNote,
 	renameNote,
 	moveNote,
+	driveFolderId,
+	onOpenFolder,
 }: {
 	folder: Folder;
 	folders: Folder[];
@@ -143,6 +181,8 @@ function FolderNode({
 	deleteNote: (id: string) => Promise<void>;
 	renameNote: (id: string, title: string) => Promise<void>;
 	moveNote: (id: string, folderId: string | null) => Promise<void>;
+	driveFolderId?: string | null;
+	onOpenFolder?: (id: string | null) => void;
 }) {
 	const isCollapsed = collapsed[folder.id] ?? false;
 	const childFolders = folders.filter((f) => f.parent_id === folder.id);
@@ -150,11 +190,16 @@ function FolderNode({
 
 	return (
 		<div className="tree-folder">
-			<div className="tree-row folder-row">
+			<div className={`tree-row folder-row ${driveFolderId === folder.id ? 'selected' : ''}`}>
 				<button
 					type="button"
 					className="tree-main"
-					onClick={() => setCollapsed({ ...collapsed, [folder.id]: !isCollapsed })}
+					onClick={() => {
+						if (onOpenFolder) {
+							onOpenFolder(folder.id);
+							setCollapsed({ ...collapsed, [folder.id]: false });
+						} else setCollapsed({ ...collapsed, [folder.id]: !isCollapsed });
+					}}
 				>
 					<span className={`chevron ${isCollapsed ? '' : 'open'}`}>▸</span>
 					<IconFolder />
@@ -180,21 +225,24 @@ function FolderNode({
 					type="button"
 					className="icon-btn"
 					title="Rename folder"
-					onClick={() => {
-						const name = window.prompt('Rename folder', folder.name);
+					onClick={async () => {
+						const name = await dialog.prompt('Rename folder', folder.name);
 						if (name) void renameFolder(folder.id, name);
 					}}
 				>
-					✎
+					<IconPencil />
 				</button>
 				<button
 					type="button"
 					className="icon-btn danger"
 					title="Delete folder"
-					onClick={() => {
-						if (window.confirm(`Delete folder “${folder.name}”? Notes will be unfiled.`)) {
-							void deleteFolder(folder.id);
-						}
+					onClick={async () => {
+						const ok = await dialog.confirm(`Delete “${folder.name}”?`, {
+							message: 'Notes inside will be unfiled, not deleted.',
+							confirmLabel: 'Delete folder',
+							danger: true,
+						});
+						if (ok) void deleteFolder(folder.id);
 					}}
 				>
 					<IconTrash />
@@ -219,6 +267,8 @@ function FolderNode({
 							deleteNote={deleteNote}
 							renameNote={renameNote}
 							moveNote={moveNote}
+							driveFolderId={driveFolderId}
+							onOpenFolder={onOpenFolder}
 						/>
 					))}
 					{childNotes.map((note) => (
@@ -263,24 +313,29 @@ function NoteRow({
 				type="button"
 				className="icon-btn"
 				title="Rename"
-				onClick={() => {
-					const title = window.prompt('Rename note', note.title);
+				onClick={async () => {
+					const title = await dialog.prompt('Rename note', note.title);
 					if (title) onRename(title);
 				}}
 			>
-				✎
+				<IconPencil />
 			</button>
 			{onUnfile && (
-				<button type="button" className="icon-btn" title="Unfile" onClick={onUnfile}>
-					↥
+				<button type="button" className="icon-btn" title="Move out of folder" onClick={onUnfile}>
+					<IconUnfile />
 				</button>
 			)}
 			<button
 				type="button"
 				className="icon-btn danger"
 				title="Delete note"
-				onClick={() => {
-					if (window.confirm(`Delete “${note.title}”?`)) onDelete();
+				onClick={async () => {
+					const ok = await dialog.confirm(`Delete “${note.title}”?`, {
+						message: 'This cannot be undone.',
+						confirmLabel: 'Delete note',
+						danger: true,
+					});
+					if (ok) onDelete();
 				}}
 			>
 				<IconTrash />

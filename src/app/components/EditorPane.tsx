@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useVault } from '../VaultProvider';
 import { extractOutline } from '../markdown';
 import { CodeEditor } from './CodeEditor';
+import { IconNote, IconPlus } from './Icons';
 import { MarkdownPreview } from './MarkdownPreview';
 
 export function EditorPane() {
@@ -13,6 +14,7 @@ export function EditorPane() {
 		theme,
 		updateBody,
 		selectNote,
+		createNote,
 		uploadFiles,
 		libraryOpen,
 	} = useVault();
@@ -22,7 +24,18 @@ export function EditorPane() {
 	if (!activeNote) {
 		return (
 			<section className="empty-main">
-				<p>Select a note or create one to begin.</p>
+				<div className="empty-state">
+					<span className="empty-glyph">
+						<IconNote />
+					</span>
+					<strong>Nothing open</strong>
+					<p className="muted">
+						Pick a note from the sidebar, or press <kbd>⌘K</kbd> to jump anywhere.
+					</p>
+					<button type="button" className="btn btn-primary" onClick={() => void createNote(null)}>
+						<IconPlus /> New note
+					</button>
+				</div>
 			</section>
 		);
 	}
@@ -42,7 +55,7 @@ export function EditorPane() {
 				e.preventDefault();
 				setDragging(false);
 				if (e.dataTransfer.files.length) {
-					void uploadFiles(e.dataTransfer.files, activeNote.id);
+					void uploadFiles(e.dataTransfer.files, { noteId: activeNote.id });
 				}
 			}}
 		>

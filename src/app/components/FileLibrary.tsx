@@ -1,33 +1,201 @@
+import { useEffect, useMemo, useState } from 'react';
 import { fileContentUrl } from '../api';
+import { extOf, fileKind, folderPath, formatBytes, formatDate } from '../format';
 import { useVault } from '../VaultProvider';
-import type { LibraryFilter, VaultFile } from '../types';
-import { useMemo, useState } from 'react';
-import { IconTrash } from './Icons';
+import type { Folder, LibraryFilter, VaultFile } from '../types';
+import { dialog } from './Dialog';
+import {
+	IconDownload,
+	IconFolder,
+	IconGrid,
+	IconList,
+	IconNote,
+	IconPencil,
+	IconPlus,
+	IconTrash,
+	IconUpload,
+	kindIcon,
+} from './Icons';
 import { Media } from './RightPane';
 
-function kindOf(file: VaultFile): LibraryFilter {
-	if (file.mime.startsWith('video/')) return 'video';
-	if (file.mime.startsWith('image/')) return 'image';
-	if (file.mime === 'application/pdf') return 'pdf';
-	return 'other';
-}
-
 export function FileLibrary() {
-	const { files, libraryOpen, selectFile, selectedFileId, deleteFile, notes } = useVault();
+	const {
+		appMode,
+		folders,
+		notes,
+		files,
+		driveFolderId,
+		setDriveFolderId,
+		driveLayout,
+		setDriveLayout,
+		selectedFileId,
+		selectFile,
+		selectNote,
+		uploadFiles,
+		createFolder,
+		renameFolder,
+		deleteFolder,
+		renameFile,
+		moveFile,
+		deleteFile,
+		setAppMode,
+	} = useVault();
 	const [filter, setFilter] = useState<LibraryFilter>('all');
+	const [query, setQuery] = useState('');
+	const [dragging, setDragging] = useState(false);
+	const [sort, setSort] = useState<'name' | 'date' | 'size'>('name');
 
-	const visible = useMemo(
-		() => files.filter((f) => (filter === 'all' ? true : kindOf(f) === filter)),
-		[files, filter],
-	);
+	useEffect(() => {
+		if (appMode !== 'drive') return;
+		const onPaste = (event: ClipboardEvent) => {
+			const items = [...(event.clipboardData?.files ?? [])];
+			if (!items.length) return;
+			event.preventDefault();
+			const stamped = items.map((file, i) => {
+				if (file.name && file.name !== 'image.png' && file.name !== 'blob') return file;
+				const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+				return new File(
+					[file],
+					`Paste ${new Date().toISOString().slice(0, 19).replace('T', ' ')}${items.length > 1 ? ` ${i + 1}` : ''}.${ext}`,
+					{ type: file.type },
+				);
+			});
+			void uploadFiles(stamped, { folderId: driveFolderId, noteId: null });
+		};
+		window.addEventListener('paste', onPaste);
+		return () => window.removeEventListener('paste', onPaste);
+	}, [appMode, driveFolderId, uploadFiles]);
+
+	const crumbs = useMemo(() => {
+		const trail: Folder[] = [];
+		let cursor = driveFolderId;
+		const seen = new Set<string>();
+		while (cursor && !seen.has(cursor)) {
+			seen.add(cursor);
+			const folder = folders.find((f) => f.id === cursor);
+			if (!folder) break;
+			trail.unshift(folder);
+			cursor = folder.parent_id;
+		}
+		return trail;
+	}, [driveFolderId, folders]);
+
+	const childFolders = useMemo(() => {
+		const q = query.trim().toLowerCase();
+		return folders
+			.filter((f) => f.parent_id === driveFolderId)
+			.filter((f) => !q || f.name.toLowerCase().includes(q))
+			.sort((a, b) => a.name.localeCompare(b.name));
+	}, [driveFolderId, folders, query]);
+
+	const childNotes = useMemo(() => {
+		const q = query.trim().toLowerCase();
+		return notes
+			.filter((n) => n.folder_id === driveFolderId)
+			.filter((n) => !q || n.title.toLowerCase().includes(q))
+			.sort((a, b) => a.title.localeCompare(b.title));
+	}, [driveFolderId, notes, query]);
+
+	const childFiles = useMemo(() => {
+		const q = query.trim().toLowerCase();
+		const list = files.filter((f) => f.folder_id === driveFolderId);
+		const filtered = list.filter((f) => {
+			if (q && !f.name.toLowerCase().includes(q)) return false;
+			if (filter === 'all') return true;
+			return fileKind(f.mime, f.name) === filter;
+		});
+		filtered.sort((a, b) => {
+			if (sort === 'size') return b.size - a.size;
+			if (sort === 'date') return (b.updated_at || b.created_at) - (a.updated_at || a.created_at);
+			return a.name.localeCompare(b.name);
+		});
+		return filtered;
+	}, [driveFolderId, files, filter, query, sort]);
+
+	if (appMode !== 'drive') return null;
+
 	const selected = files.find((f) => f.id === selectedFileId);
 
-	if (!libraryOpen) return null;
-
 	return (
-		<section className="library">
-			<div className="library-toolbar">
-				{(['all', 'video', 'image', 'pdf', 'other'] as const).map((key) => (
+		<section
+			className={`drive ${dragging ? 'dropping' : ''}`}
+			onDragOver={(e) => {
+				e.preventDefault();
+				setDragging(true);
+			}}
+			onDragLeave={() => setDragging(false)}
+			onDrop={(e) => {
+				e.preventDefault();
+				setDragging(false);
+				if (e.dataTransfer.files.length) {
+					void uploadFiles(e.dataTransfer.files, { folderId: driveFolderId, noteId: null });
+				}
+			}}
+		>
+			{dragging && <div className="drop-hint">Drop anything here — images, PDFs, zips, lectures…</div>}
+			<div className="drive-toolbar">
+				<nav className="crumbs" aria-label="Folder path">
+					<button type="button" onClick={() => setDriveFolderId(null)}>
+						My Drive
+					</button>
+					{crumbs.map((folder) => (
+						<span key={folder.id}>
+							<span className="crumb-sep">/</span>
+							<button type="button" onClick={() => setDriveFolderId(folder.id)}>
+								{folder.name}
+							</button>
+						</span>
+					))}
+				</nav>
+				<div className="drive-actions">
+					<input
+						className="drive-search"
+						value={query}
+						placeholder="Filter this folder"
+						onChange={(e) => setQuery(e.target.value)}
+					/>
+					<button type="button" className="chip" onClick={() => void createFolder(driveFolderId)}>
+						<IconPlus /> Folder
+					</button>
+					<label className="upload-btn">
+						<IconUpload />
+						Upload
+						<input
+							type="file"
+							multiple
+							hidden
+							onChange={(e) => {
+								if (e.target.files?.length) {
+									void uploadFiles(e.target.files, { folderId: driveFolderId, noteId: null });
+								}
+								e.target.value = '';
+							}}
+						/>
+					</label>
+					<div className="seg seg-icon">
+						<button
+							type="button"
+							title="Grid view"
+							aria-label="Grid view"
+							className={driveLayout === 'grid' ? 'active' : ''}
+							onClick={() => setDriveLayout('grid')}
+						>
+							<IconGrid />
+						</button>
+						<button
+							type="button"
+							title="List view"
+							aria-label="List view"
+							className={driveLayout === 'list' ? 'active' : ''}
+							onClick={() => setDriveLayout('list')}
+						>
+							<IconList />
+						</button>
+					</div>
+				</div>
+			</div>
+			<div className="drive-filters">
+				{(['all', 'image', 'video', 'audio', 'pdf', 'other'] as const).map((key) => (
 					<button
 						key={key}
 						type="button"
@@ -37,47 +205,313 @@ export function FileLibrary() {
 						{key}
 					</button>
 				))}
+				<label className="sort-label">
+					Sort
+					<select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
+						<option value="name">Name</option>
+						<option value="date">Modified</option>
+						<option value="size">Size</option>
+					</select>
+				</label>
 			</div>
-			<div className="library-grid">
-				{visible.map((file) => {
-					const note = notes.find((n) => n.id === file.note_id);
-					return (
-						<article
-							key={file.id}
-							className={`library-card ${selectedFileId === file.id ? 'selected' : ''}`}
+			<p className="drive-hint muted">
+				Paste an image to back it up here. Any file type is fine.
+			</p>
+			{driveLayout === 'grid' ? (
+				<div className="library-grid">
+					{childFolders.map((folder) => (
+						<button
+							key={folder.id}
+							type="button"
+							className="library-card folder-card"
+							onDoubleClick={() => setDriveFolderId(folder.id)}
+							onClick={() => setDriveFolderId(folder.id)}
 						>
-							<button type="button" className="thumb" onClick={() => selectFile(file.id)}>
-								{file.mime.startsWith('image/') ? (
-									<img src={fileContentUrl(file.id)} alt="" />
-								) : file.mime.startsWith('video/') ? (
-									<video src={fileContentUrl(file.id)} muted preload="metadata" />
-								) : (
-									<span>{file.name.split('.').pop()}</span>
-								)}
-							</button>
-							<div className="library-meta">
-								<strong>{file.name}</strong>
-								<small>{note ? note.title : 'Unattached'}</small>
+							<div className="thumb folder-thumb">
+								<IconFolder />
 							</div>
-							<button
-								type="button"
-								className="icon-btn danger"
-								onClick={() => {
-									if (window.confirm(`Delete ${file.name}?`)) void deleteFile(file.id);
-								}}
-							>
-								<IconTrash />
-							</button>
-						</article>
-					);
-				})}
-				{visible.length === 0 && <p className="muted">No files in this filter.</p>}
-			</div>
+							<div className="library-meta">
+								<strong>{folder.name}</strong>
+								<small>Folder</small>
+							</div>
+						</button>
+					))}
+					{filter === 'all' &&
+						childNotes.map((note) => (
+							<article key={note.id} className="library-card">
+								<button
+									type="button"
+									className="thumb note-thumb"
+									onClick={() => {
+										setAppMode('notes');
+										void selectNote(note.id);
+									}}
+								>
+									<IconNote />
+								</button>
+								<div className="library-meta">
+									<strong>{note.title}</strong>
+									<small>Note</small>
+								</div>
+							</article>
+						))}
+					{childFiles.map((file) => (
+						<FileCard
+							key={file.id}
+							file={file}
+							selected={file.id === selectedFileId}
+							onSelect={() => selectFile(file.id)}
+							onDelete={async () => {
+								const ok = await dialog.confirm(`Delete “${file.name}”?`, {
+									message: 'The file will be removed from storage permanently.',
+									confirmLabel: 'Delete file',
+									danger: true,
+								});
+								if (ok) void deleteFile(file.id);
+							}}
+						/>
+					))}
+				</div>
+			) : (
+				<table className="drive-table">
+					<thead>
+						<tr>
+							<th>Name</th>
+							<th>Type</th>
+							<th>Size</th>
+							<th>Modified</th>
+							<th />
+						</tr>
+					</thead>
+					<tbody>
+						{childFolders.map((folder) => (
+							<tr key={folder.id} className="folder-row-drive">
+								<td>
+									<button type="button" className="name-btn" onClick={() => setDriveFolderId(folder.id)}>
+										<IconFolder /> {folder.name}
+									</button>
+								</td>
+								<td>Folder</td>
+								<td>—</td>
+								<td>{formatDate(folder.updated_at)}</td>
+								<td className="row-actions">
+									<button
+										type="button"
+										className="icon-btn"
+										title="Rename folder"
+										onClick={async () => {
+											const name = await dialog.prompt('Rename folder', folder.name);
+											if (name) void renameFolder(folder.id, name);
+										}}
+									>
+										<IconPencil />
+									</button>
+									<button
+										type="button"
+										className="icon-btn danger"
+										title="Delete folder"
+										onClick={async () => {
+											const ok = await dialog.confirm(`Delete “${folder.name}”?`, {
+												message: 'Items inside will move back to My Drive.',
+												confirmLabel: 'Delete folder',
+												danger: true,
+											});
+											if (ok) void deleteFolder(folder.id);
+										}}
+									>
+										<IconTrash />
+									</button>
+								</td>
+							</tr>
+						))}
+						{filter === 'all' &&
+							childNotes.map((note) => (
+								<tr key={note.id}>
+									<td>
+										<button
+											type="button"
+											className="name-btn"
+											onClick={() => {
+												setAppMode('notes');
+												void selectNote(note.id);
+											}}
+										>
+											<IconNote /> {note.title}
+										</button>
+									</td>
+									<td>Note</td>
+									<td>—</td>
+									<td>{formatDate(note.updated_at)}</td>
+									<td className="row-actions" />
+								</tr>
+							))}
+						{childFiles.map((file) => {
+							const KindIcon = kindIcon(fileKind(file.mime, file.name));
+							return (
+								<tr key={file.id} className={selectedFileId === file.id ? 'selected' : ''}>
+									<td>
+										<button type="button" className="name-btn" onClick={() => selectFile(file.id)}>
+											<KindIcon /> {file.name}
+										</button>
+									</td>
+									<td>
+										<span className="ext-tag">{extOf(file.name)}</span>
+									</td>
+									<td>{formatBytes(file.size)}</td>
+									<td>{formatDate(file.updated_at || file.created_at)}</td>
+									<td className="row-actions">
+										<a
+											className="icon-btn"
+											href={fileContentUrl(file.id, true)}
+											title={`Download ${file.name}`}
+										>
+											<IconDownload />
+										</a>
+										<button
+											type="button"
+											className="icon-btn danger"
+											title="Delete file"
+											onClick={async () => {
+												const ok = await dialog.confirm(`Delete “${file.name}”?`, {
+													message: 'The file will be removed from storage permanently.',
+													confirmLabel: 'Delete file',
+													danger: true,
+												});
+												if (ok) void deleteFile(file.id);
+											}}
+										>
+											<IconTrash />
+										</button>
+									</td>
+								</tr>
+							);
+						})}
+					</tbody>
+				</table>
+			)}
+			{childFolders.length + childFiles.length + (filter === 'all' ? childNotes.length : 0) === 0 && (
+				<div className="empty-state empty-drive">
+					<span className="empty-glyph">
+						<IconUpload />
+					</span>
+					<strong>{query || filter !== 'all' ? 'Nothing matches' : 'This folder is empty'}</strong>
+					<p className="muted">
+						{query || filter !== 'all'
+							? 'Try a different filter or clear the search.'
+							: 'Drag files anywhere on this page, or paste a screenshot to back it up.'}
+					</p>
+				</div>
+			)}
 			{selected && (
 				<div className="library-player">
+					<div className="viewer-head">
+						<span>{selected.name}</span>
+						<div className="viewer-actions">
+							<a className="chip" href={fileContentUrl(selected.id, true)}>
+								<IconDownload /> Download
+							</a>
+							<button
+								type="button"
+								className="chip"
+								onClick={async () => {
+									const name = await dialog.prompt('Rename file', selected.name);
+									if (name) void renameFile(selected.id, name);
+								}}
+							>
+								<IconPencil /> Rename
+							</button>
+							<button
+								type="button"
+								className="chip"
+								onClick={async () => {
+									const picked = await dialog.choose(
+										'Move to folder',
+										[
+											{ label: 'My Drive', value: null },
+											...folders.map((folder) => ({
+												label: folder.name,
+												value: folder.id,
+												hint: folderPath(folders, folder.id),
+											})),
+										],
+										{ message: `Choose a destination for “${selected.name}”.` },
+									);
+									if (picked !== undefined) void moveFile(selected.id, picked);
+								}}
+							>
+								<IconFolder /> Move
+							</button>
+						</div>
+					</div>
 					<Media file={selected} />
+					<p className="muted drive-file-meta">
+						{formatBytes(selected.size)} · {selected.mime || 'unknown type'} ·{' '}
+						{folderPath(folders, selected.folder_id)}
+					</p>
 				</div>
 			)}
 		</section>
+	);
+}
+
+function FileCard({
+	file,
+	selected,
+	onSelect,
+	onDelete,
+}: {
+	file: VaultFile;
+	selected: boolean;
+	onSelect: () => void;
+	onDelete: () => void;
+}) {
+	const kind = fileKind(file.mime, file.name);
+	const KindIcon = kindIcon(kind);
+	const [previewFailed, setPreviewFailed] = useState(false);
+	const showPreview = !previewFailed && (kind === 'image' || kind === 'video');
+	return (
+		<article className={`library-card ${selected ? 'selected' : ''}`}>
+			<button type="button" className="thumb" onClick={onSelect}>
+				{showPreview && kind === 'image' ? (
+					<img
+						src={fileContentUrl(file.id)}
+						alt=""
+						loading="lazy"
+						onError={() => setPreviewFailed(true)}
+					/>
+				) : showPreview ? (
+					<video
+						src={fileContentUrl(file.id)}
+						muted
+						preload="metadata"
+						onError={() => setPreviewFailed(true)}
+					/>
+				) : (
+					<span className="thumb-glyph">
+						<KindIcon />
+						<em>{extOf(file.name)}</em>
+					</span>
+				)}
+			</button>
+			<div className="library-meta">
+				<strong title={file.name}>{file.name}</strong>
+				<small>
+					{formatBytes(file.size)} · {kind}
+				</small>
+			</div>
+			<div className="card-actions">
+				<a
+					className="icon-btn"
+					href={fileContentUrl(file.id, true)}
+					title={`Download ${file.name}`}
+					onClick={(event) => event.stopPropagation()}
+				>
+					<IconDownload />
+				</a>
+				<button type="button" className="icon-btn danger" onClick={onDelete} title="Delete">
+					<IconTrash />
+				</button>
+			</div>
+		</article>
 	);
 }

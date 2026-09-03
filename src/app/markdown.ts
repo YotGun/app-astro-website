@@ -44,6 +44,86 @@ function remarkCallouts() {
 	};
 }
 
+/** Roughly one line of prose, so a blank line in the editor costs the same
+ *  vertical space in the preview. Keep in sync with .prose line-height. */
+const PROSE_LINE_EM = 1.7;
+
+type BlockNode = {
+	type: string;
+	position?: { start: { line: number }; end: { line: number } };
+};
+
+/**
+ * Markdown treats any run of blank lines as a single paragraph break, so
+ * deliberate spacing in the editor vanishes from the preview. Source positions
+ * survive parsing, so re-insert the discarded lines as spacer elements.
+ */
+function remarkBlankRuns() {
+	return (tree: unknown) => {
+		const children = (tree as { children?: BlockNode[] }).children;
+		if (!children) return;
+		// Walk backwards so splicing does not shift the indices still to check.
+		for (let i = children.length - 1; i > 0; i--) {
+			const prev = children[i - 1];
+			const next = children[i];
+			if (!prev?.position || !next?.position) continue;
+			// One blank line is the normal separator; anything beyond it was dropped.
+			const extra = next.position.start.line - prev.position.end.line - 2;
+			if (extra < 1) continue;
+			children.splice(i, 0, {
+				type: 'blankRun',
+				children: [],
+				data: {
+					hName: 'div',
+					hProperties: {
+						className: ['blank-run'],
+						style: `height:${(extra * PROSE_LINE_EM).toFixed(2)}em`,
+					},
+				},
+			} as unknown as BlockNode);
+		}
+	};
+}
+
+const SOFT_BREAK_RE = /[\t ]*(?:\r?\n|\r)[\t ]*/g;
+
+/**
+ * Renders a single newline as a real line break, the way note apps do.
+ * Plain CommonMark collapses it into a space, which makes the preview drift
+ * out of step with the editor. Must run after remarkCallouts, which reads
+ * newlines out of the raw text nodes itself.
+ */
+function remarkSoftBreaks() {
+	return (tree: unknown) => {
+		visit(
+			tree as never,
+			'text',
+			(
+				node: { value: string },
+				index: number | undefined,
+				parent: { children: Array<{ type: string; value?: string }> } | undefined,
+			) => {
+				if (!parent || index === undefined) return;
+				const pieces: Array<{ type: string; value?: string }> = [];
+				let start = 0;
+				let match: RegExpExecArray | null;
+				SOFT_BREAK_RE.lastIndex = 0;
+				while ((match = SOFT_BREAK_RE.exec(node.value))) {
+					const value = node.value.slice(start, match.index);
+					if (value) pieces.push({ type: 'text', value });
+					pieces.push({ type: 'break' });
+					start = match.index + match[0].length;
+				}
+				if (!pieces.length) return;
+				const tail = node.value.slice(start);
+				if (tail) pieces.push({ type: 'text', value: tail });
+				parent.children.splice(index, 1, ...pieces);
+				return index + pieces.length;
+			},
+		);
+	};
+}
+
 export function parseFrontmatter(body: string): {
 	title?: string;
 	tags: string[];
@@ -151,18 +231,18 @@ function hydrateMedia(html: string, files: VaultFile[]): string {
 			if (!file) return `<span class="wiki-missing">${label}</span>`;
 			const src = `/api/files/${file.id}/content`;
 			if (file.mime.startsWith('image/')) {
-				return `<img src="${src}" alt="${escapeAttr(file.name)}" />`;
+				return `<img src="${src}" alt="${escapeAttr(file.name)}" loading="lazy" decoding="async" />`;
 			}
 			if (file.mime.startsWith('video/')) {
-				return `<video controls preload="metadata" src="${src}"></video>`;
+				return `<video class="embed-media" controls preload="metadata" src="${src}"></video>`;
 			}
 			if (file.mime.startsWith('audio/')) {
-				return `<audio controls src="${src}"></audio>`;
+				return `<audio class="embed-media embed-audio" controls src="${src}"></audio>`;
 			}
 			if (file.mime === 'application/pdf') {
 				return `<iframe class="pdf-frame" title="${escapeAttr(file.name)}" src="${src}"></iframe>`;
 			}
-			return `<a href="${src}" target="_blank" rel="noreferrer">${escapeAttr(file.name)}</a>`;
+			return `<a class="embed-file" href="${src}" target="_blank" rel="noreferrer">${escapeAttr(file.name)}</a>`;
 		},
 	);
 }
@@ -192,7 +272,9 @@ const processor = unified()
 	.use(remarkParse)
 	.use(remarkGfm)
 	.use(remarkMath)
+	.use(remarkBlankRuns)
 	.use(remarkCallouts)
+	.use(remarkSoftBreaks)
 	.use(remarkRehype)
 	.use(rehypeKatex)
 	.use(rehypeHighlight)

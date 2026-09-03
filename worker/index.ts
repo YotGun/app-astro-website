@@ -1,6 +1,6 @@
 /// <reference path="../worker-configuration.d.ts" />
 import { createFolder, deleteFolder, listFolders, updateFolder } from './folders';
-import { attachFile, deleteFile, getFileContent, initFile, listFiles, putFileContent } from './files';
+import { deleteFile, getFileContent, initFile, listFiles, putFileContent, updateFile } from './files';
 import { error, json } from './http';
 import { createNote, deleteNote, getNote, listNotes, updateNote } from './notes';
 import { searchNotes } from './search';
@@ -64,7 +64,7 @@ export default {
 			const file = FILE_ID.exec(pathname);
 			if (file) {
 				const id = decodeURIComponent(file[1]);
-				if (method === 'PATCH') return attachFile(env, id, request);
+				if (method === 'PATCH') return updateFile(env, id, request);
 				if (method === 'DELETE') return deleteFile(env, id);
 			}
 

@@ -69,6 +69,9 @@ export async function deleteFolder(env: Env, folderId: string): Promise<Response
 	await env.DB.prepare('UPDATE notes SET folder_id = NULL WHERE folder_id = ?')
 		.bind(folderId)
 		.run();
+	await env.DB.prepare('UPDATE files SET folder_id = NULL WHERE folder_id = ?')
+		.bind(folderId)
+		.run();
 	await env.DB.prepare('DELETE FROM folders WHERE id = ?').bind(folderId).run();
 	return json({ ok: true });
 }

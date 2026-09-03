@@ -5,14 +5,16 @@ import 'katex/dist/katex.min.css';
 import { useEffect } from 'react';
 import { VaultProvider, useVault } from './VaultProvider';
 import { CommandPalette } from './components/CommandPalette';
+import { DialogHost } from './components/Dialog';
 import { EditorPane } from './components/EditorPane';
 import { FileLibrary } from './components/FileLibrary';
 import {
-	IconLibrary,
+	IconAlert,
 	IconMoon,
 	IconPanel,
 	IconSearch,
 	IconSun,
+	IconVault,
 } from './components/Icons';
 import { RightPane } from './components/RightPane';
 import { Sidebar } from './components/Sidebar';
@@ -52,15 +54,24 @@ function Shell() {
 					<button
 						type="button"
 						className="icon-btn"
-						title="Toggle sidebar"
+						title="Toggle sidebar (⌘\)"
 						onClick={() => vault.setSidebarOpen(!vault.sidebarOpen)}
 					>
 						<IconPanel />
 					</button>
+					<span className="brand-mark" aria-hidden="true">
+						<IconVault />
+					</span>
 					<strong>Vault</strong>
-					<span className="status">{vault.saving ? 'Saving…' : vault.status}</span>
+					<span
+						className={`status ${vault.saving ? 'status-busy' : ''} ${vault.error ? 'status-error' : ''}`}
+						title={vault.status}
+					>
+						<i className="status-dot" />
+						{vault.saving ? 'Saving…' : vault.status}
+					</span>
 				</div>
-				{vault.activeNote && (
+				{vault.activeNote && vault.appMode === 'notes' && (
 					<div className="note-title">
 						<span>{vault.activeNote.title}</span>
 						{vault.activeNote.tags.length > 0 && (
@@ -74,29 +85,39 @@ function Shell() {
 				)}
 				<div className="top-actions">
 					<div className="seg">
-						{(['edit', 'split', 'preview'] as const).map((mode) => (
-							<button
-								key={mode}
-								type="button"
-								className={vault.viewMode === mode ? 'active' : ''}
-								onClick={() => vault.setViewMode(mode)}
-							>
-								{mode}
-							</button>
-						))}
+						<button
+							type="button"
+							className={vault.appMode === 'notes' ? 'active' : ''}
+							onClick={() => vault.setAppMode('notes')}
+						>
+							Notes
+						</button>
+						<button
+							type="button"
+							className={vault.appMode === 'drive' ? 'active' : ''}
+							onClick={() => vault.setAppMode('drive')}
+						>
+							Drive
+						</button>
 					</div>
-					<button
-						type="button"
-						className={`icon-btn ${vault.libraryOpen ? 'active' : ''}`}
-						title="File library"
-						onClick={() => vault.setLibraryOpen(!vault.libraryOpen)}
-					>
-						<IconLibrary />
-					</button>
+					{vault.appMode === 'notes' && (
+						<div className="seg">
+							{(['edit', 'split', 'preview'] as const).map((mode) => (
+								<button
+									key={mode}
+									type="button"
+									className={vault.viewMode === mode ? 'active' : ''}
+									onClick={() => vault.setViewMode(mode)}
+								>
+									{mode}
+								</button>
+							))}
+						</div>
+					)}
 					<button
 						type="button"
 						className="icon-btn"
-						title="Command palette"
+						title="Command palette (⌘K)"
 						onClick={() => vault.setPaletteOpen(true)}
 					>
 						<IconSearch />
@@ -104,14 +125,14 @@ function Shell() {
 					<button
 						type="button"
 						className="icon-btn"
-						title="Toggle theme"
+						title={vault.theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
 						onClick={vault.toggleTheme}
 					>
 						{vault.theme === 'dark' ? <IconSun /> : <IconMoon />}
 					</button>
 					<button
 						type="button"
-						className="icon-btn"
+						className={`icon-btn flip ${vault.rightOpen ? 'active' : ''}`}
 						title="Toggle outline"
 						onClick={() => vault.setRightOpen(!vault.rightOpen)}
 					>
@@ -119,7 +140,12 @@ function Shell() {
 					</button>
 				</div>
 			</header>
-			{vault.error && <div className="banner">{vault.error}</div>}
+			{vault.error && (
+				<div className="banner" role="status">
+					<IconAlert />
+					<span>{vault.error}</span>
+				</div>
+			)}
 			<div
 				className={`workspace ${vault.sidebarOpen ? '' : 'no-left'} ${vault.rightOpen ? '' : 'no-right'}`}
 			>
@@ -129,6 +155,7 @@ function Shell() {
 				<RightPane />
 			</div>
 			<CommandPalette />
+			<DialogHost />
 		</div>
 	);
 }
