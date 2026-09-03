@@ -1,6 +1,6 @@
 ---
-import BaseHead from '../components/BaseHead.astro';
-import Header from '../components/Header.astro';
+import '../styles/global.css';
+import App from '../app/App';
 
 interface Props {
 	title: string;
@@ -11,12 +11,18 @@ const { title, description } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 	<head>
-		<BaseHead title={title} description={description} />
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="robots" content="noindex, nofollow" />
+		<title>{title}</title>
+		<meta name="description" content={description} />
 	</head>
 	<body>
-		<Header />
-		<slot />
+		<App client:only="react">
+			<div class="empty-main"><p>Loading vault…</p></div>
+		</App>
 	</body>
 </html>

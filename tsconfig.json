@@ -1,8 +1,10 @@
 {
 	"extends": "astro/tsconfigs/strict",
 	"include": [".astro/types.d.ts", "**/*"],
-	"exclude": ["dist"],
+	"exclude": ["dist", "worker", "migrations", "worker-configuration.d.ts"],
 	"compilerOptions": {
-		"strictNullChecks": true
+		"strictNullChecks": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "react"
 	}
 }

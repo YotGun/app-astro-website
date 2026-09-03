@@ -1,17 +1,15 @@
-// @ts-check
-import { defineConfig } from "astro/config";
-import mdx from "@astrojs/mdx";
-import sitemap from "@astrojs/sitemap";
+import { defineConfig } from 'astro/config';
+import react from '@astrojs/react';
 
-import cloudflare from "@astrojs/cloudflare";
-
-// https://astro.build/config
 export default defineConfig({
-	site: "https://example.com",
-	integrations: [mdx(), sitemap()],
-	adapter: cloudflare({
-		platformProxy: {
-			enabled: true,
+	site: 'https://app.regan.ng',
+	output: 'static',
+	integrations: [react()],
+	vite: {
+		server: {
+			proxy: {
+				'/api': 'http://127.0.0.1:8787',
+			},
 		},
-	}),
+	},
 });
