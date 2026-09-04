@@ -120,6 +120,21 @@ textarea {
 	color: inherit;
 }
 
+/* JetBrains Mono ligates runs of #, so "####" draws as "  ##" while keeping
+   all four advance widths. Literal text must never be ligated. */
+.cm-content,
+.prose code,
+.prose pre,
+.tags span,
+.ext-tag,
+.viewer-text,
+kbd {
+	font-variant-ligatures: none;
+	font-feature-settings:
+		'liga' 0,
+		'calt' 0;
+}
+
 button {
 	background: none;
 	border: 0;
@@ -300,6 +315,7 @@ button:disabled {
 }
 
 .brand {
+	grid-column: 1;
 	display: flex;
 	align-items: center;
 	gap: 0.55rem;
@@ -407,7 +423,10 @@ button:disabled {
 	font-family: var(--font-mono);
 }
 
+/* Pinned to the last column: the centre cell is empty whenever no note title
+   is showing, and the actions must not slide into it. */
 .top-actions {
+	grid-column: 3;
 	display: flex;
 	justify-content: flex-end;
 	align-items: center;
@@ -1121,29 +1140,59 @@ kbd {
 .prose h1,
 .prose h2,
 .prose h3,
-.prose h4 {
+.prose h4,
+.prose h5,
+.prose h6 {
 	font-family: 'SF Pro Display', var(--font-ui);
+	font-weight: 600;
 	line-height: 1.25;
-	margin: 1.6em 0 0.5em;
+	margin: 1.5em 0 0.5em;
 	scroll-margin-top: 1.5rem;
+	color: var(--text);
 }
 
 .prose h1 {
-	font-size: 1.85rem;
+	font-size: 1.8em;
 	font-weight: 560;
 	letter-spacing: -0.015em;
 }
 
 .prose h2 {
-	font-size: 1.4rem;
+	font-size: 1.5em;
 	font-weight: 560;
-	padding-bottom: 0.25em;
+	letter-spacing: -0.01em;
+}
+
+/* Obsidian rules off its two top levels; the rest rely on size alone. */
+.prose h1,
+.prose h2 {
+	padding-bottom: 0.2em;
 	border-bottom: 1px solid var(--border);
+}
+
+.prose h3 {
+	font-size: 1.28em;
+}
+
+.prose h4 {
+	font-size: 1.13em;
+}
+
+.prose h5 {
+	font-size: 1em;
+}
+
+.prose h6 {
+	font-size: 0.92em;
+	color: var(--text-muted);
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
 }
 
 .prose h1:first-child,
 .prose h2:first-child,
-.prose h3:first-child {
+.prose h3:first-child,
+.prose h4:first-child {
 	margin-top: 0;
 }
 
@@ -1169,6 +1218,59 @@ kbd {
 	border-left: 2px solid var(--border-strong);
 	color: var(--text-muted);
 	font-style: italic;
+}
+
+.prose blockquote blockquote {
+	margin: 0.5em 0;
+}
+
+.prose mark {
+	padding: 0.08em 0.16em;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--accent) 30%, transparent);
+	color: inherit;
+}
+
+.prose del {
+	color: var(--text-faint);
+	text-decoration-color: var(--text-faint);
+}
+
+/* GFM footnotes: Obsidian renders them as a quiet block after a rule. */
+.prose .footnotes {
+	margin-top: 2.5em;
+	padding-top: 1.2em;
+	border-top: 1px solid var(--border);
+	font-size: 0.88em;
+	color: var(--text-muted);
+}
+
+.prose .footnotes h2.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+}
+
+.prose .footnotes li {
+	margin: 0.4em 0;
+}
+
+.prose .footnotes li:target {
+	background: color-mix(in srgb, var(--accent) 12%, transparent);
+	border-radius: var(--r-sm);
+}
+
+.prose .data-footnote-backref {
+	text-decoration: none;
+	margin-left: 0.3em;
+}
+
+.prose sup a {
+	text-decoration: none;
+	font-weight: 600;
+	padding: 0 0.12em;
 }
 
 .prose ul,
@@ -1651,7 +1753,9 @@ html[data-theme='light'] .hljs-deletion {
 	color: var(--accent);
 }
 
-.viewer {
+/* --- file details (Drive-style) ------------------------------------------ */
+
+.details {
 	border: 1px solid var(--border);
 	border-radius: var(--r-lg);
 	overflow: hidden;
@@ -1660,36 +1764,151 @@ html[data-theme='light'] .hljs-deletion {
 	animation: rise-in var(--med) var(--ease);
 }
 
-.viewer-head {
+.details-head {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 	gap: 0.5rem;
-	padding: 0.4rem 0.55rem;
+	padding: 0.45rem 0.5rem 0.45rem 0.7rem;
 	border-bottom: 1px solid var(--border);
 	background: var(--bg-elevated);
-	font-size: 0.78rem;
 }
 
-.viewer-head > span {
+.details-name {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-weight: 550;
+	font-size: 0.8rem;
+	font-weight: 600;
 }
 
-.media {
-	display: block;
+.details-preview {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	width: 100%;
-	max-height: 16rem;
-	background: #000;
-}
-
-.pdf-frame {
-	width: 100%;
-	height: 16rem;
+	height: 9.5rem;
+	padding: 0;
 	border: 0;
-	background: var(--bg);
+	border-bottom: 1px solid var(--border);
+	background:
+		linear-gradient(180deg, var(--bg-elevated), var(--bg-sunken));
+	cursor: zoom-in;
+	overflow: hidden;
+}
+
+.details-thumb {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+}
+
+.details-glyph {
+	display: grid;
+	justify-items: center;
+	gap: 0.4rem;
+	color: var(--text-faint);
+}
+
+.details-glyph svg {
+	width: 2.4rem;
+	height: 2.4rem;
+}
+
+.details-glyph em {
+	font-family: var(--font-mono);
+	font-size: 0.65rem;
+	font-style: normal;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.details-open {
+	position: absolute;
+	inset: auto 0 0 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+	padding: 0.4rem;
+	font-size: 0.72rem;
+	font-weight: 550;
+	color: var(--text);
+	background: color-mix(in srgb, var(--bg) 78%, transparent);
+	backdrop-filter: blur(6px);
+	opacity: 0;
+	transform: translateY(100%);
+	transition:
+		opacity var(--fast) var(--ease),
+		transform var(--fast) var(--ease);
+}
+
+.details-open svg {
+	width: 0.85rem;
+	height: 0.85rem;
+	color: var(--accent);
+}
+
+.details-preview:hover .details-open,
+.details-preview:focus-visible .details-open {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+.details-list {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 0.3rem 0.75rem;
+	margin: 0;
+	padding: 0.7rem;
+	font-size: 0.75rem;
+}
+
+.details-list dt {
+	color: var(--text-faint);
+	white-space: nowrap;
+}
+
+.details-list dd {
+	margin: 0;
+	color: var(--text-muted);
+	overflow-wrap: anywhere;
+}
+
+.details-loc {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+}
+
+.details-loc svg {
+	width: 0.8rem;
+	height: 0.8rem;
+	flex: none;
+	color: var(--accent);
+}
+
+.details-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	padding: 0 0.7rem 0.7rem;
+}
+
+.details-actions .chip {
+	font-size: 0.72rem;
+}
+
+.details-actions .chip.danger {
+	color: var(--danger);
+	border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
+}
+
+.details-actions .chip.danger:hover {
+	background: color-mix(in srgb, var(--danger) 14%, transparent);
+	border-color: var(--danger);
 }
 
 .download {
@@ -1824,7 +2043,6 @@ html[data-theme='light'] .hljs-deletion {
 	border: 1px solid var(--border);
 	border-radius: 999px;
 	font-size: 0.75rem;
-	text-transform: capitalize;
 	color: var(--text-muted);
 }
 
@@ -1841,33 +2059,47 @@ html[data-theme='light'] .hljs-deletion {
 	font-weight: 550;
 }
 
+.drive-count {
+	margin-left: auto;
+	padding-right: 0.55rem;
+	margin-right: 0.2rem;
+	border-right: 1px solid var(--border);
+	font-size: 0.75rem;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
 .sort-label {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.35rem;
-	margin-left: auto;
 	font-size: 0.75rem;
 	color: var(--text-muted);
 }
 
 .sort-label select {
-	background: var(--bg-elevated);
+	appearance: none;
+	-webkit-appearance: none;
+	background-color: var(--bg-elevated);
+	/* Native select arrows are the loudest "unstyled web page" tell. */
+	background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b8b9b' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+	background-repeat: no-repeat;
+	background-position: right 0.4rem center;
 	color: var(--text);
 	border: 1px solid var(--border);
 	border-radius: var(--r-md);
-	padding: 0.25rem 0.45rem;
+	padding: 0.25rem 1.35rem 0.25rem 0.5rem;
 	font-size: 0.75rem;
 	cursor: pointer;
-	transition: border-color var(--fast) var(--ease);
+	transition:
+		border-color var(--fast) var(--ease),
+		background-color var(--fast) var(--ease);
 }
 
 .sort-label select:hover {
 	border-color: var(--border-strong);
-}
-
-.drive-hint {
-	margin: 0;
-	opacity: 0.75;
+	background-color: var(--bg-hover);
 }
 
 /* --- grid ---------------------------------------------------------------- */
@@ -2169,37 +2401,6 @@ tr:focus-within .row-actions .icon-btn {
 	opacity: 1;
 }
 
-/* --- player + empty ------------------------------------------------------ */
-
-.library-player {
-	position: sticky;
-	bottom: 0;
-	border: 1px solid var(--border);
-	border-radius: var(--r-lg);
-	overflow: hidden;
-	background: var(--bg-elevated);
-	box-shadow: var(--shadow-md);
-	animation: rise-in var(--med) var(--ease);
-}
-
-.library-player .media,
-.library-player .pdf-frame {
-	max-height: 28rem;
-	height: 28rem;
-}
-
-.viewer-actions {
-	display: flex;
-	gap: 0.35rem;
-	font-size: 0.75rem;
-	flex: none;
-}
-
-.drive-file-meta {
-	padding: 0.45rem 0.7rem 0.7rem;
-	margin: 0;
-}
-
 .empty-drive {
 	margin: 2.5rem auto;
 }
@@ -2334,7 +2535,8 @@ tr:focus-within .row-actions .icon-btn {
 .dialog-backdrop {
 	position: fixed;
 	inset: 0;
-	z-index: 60;
+	/* Above the file viewer so confirmations are never trapped behind it. */
+	z-index: 100;
 	background: color-mix(in srgb, var(--bg) 50%, rgba(0, 0, 0, 0.55));
 	backdrop-filter: blur(4px);
 	-webkit-backdrop-filter: blur(4px);
@@ -2481,6 +2683,247 @@ tr:focus-within .row-actions .icon-btn {
 }
 
 /* ==========================================================================
+   File viewer (double-click lightbox)
+   ========================================================================== */
+
+.viewer-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 90;
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
+	background: color-mix(in srgb, #05050a 88%, transparent);
+	backdrop-filter: blur(10px) saturate(120%);
+	animation: fade-in var(--fast) var(--ease);
+}
+
+.viewer-bar {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.6rem 0.85rem;
+	color: #f4f4f8;
+	background: color-mix(in srgb, #0b0b12 55%, transparent);
+	border-bottom: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.viewer-title {
+	font-size: 0.85rem;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.viewer-sub {
+	flex: 1;
+	font-size: 0.72rem;
+	color: rgb(255 255 255 / 0.55);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.viewer-tools {
+	display: flex;
+	gap: 0.3rem;
+	flex: none;
+}
+
+.viewer-tools .icon-btn {
+	color: rgb(255 255 255 / 0.75);
+	border-color: rgb(255 255 255 / 0.14);
+	background: rgb(255 255 255 / 0.06);
+}
+
+.viewer-tools .icon-btn:hover {
+	color: #fff;
+	background: rgb(255 255 255 / 0.16);
+	border-color: rgb(255 255 255 / 0.3);
+}
+
+.viewer-stage {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 0;
+	padding: 1.5rem clamp(1rem, 6vw, 5rem);
+	animation: pop-in var(--med) var(--ease);
+}
+
+.viewer-image,
+.viewer-video {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+	border-radius: var(--r-md);
+	box-shadow: 0 24px 70px rgb(0 0 0 / 0.55);
+}
+
+.viewer-pdf {
+	width: min(100%, 60rem);
+	height: 100%;
+	border: 0;
+	border-radius: var(--r-md);
+	background: #fff;
+	box-shadow: 0 24px 70px rgb(0 0 0 / 0.55);
+}
+
+.viewer-audio {
+	display: grid;
+	justify-items: center;
+	gap: 1.25rem;
+	padding: 2rem 2.5rem;
+	border-radius: var(--r-lg);
+	background: rgb(255 255 255 / 0.05);
+	border: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.viewer-audio audio {
+	width: min(70vw, 30rem);
+}
+
+.viewer-glyph {
+	display: grid;
+	place-items: center;
+	width: 4.5rem;
+	height: 4.5rem;
+	border-radius: var(--r-lg);
+	background: rgb(255 255 255 / 0.07);
+	color: var(--accent);
+}
+
+.viewer-glyph svg {
+	width: 2.2rem;
+	height: 2.2rem;
+}
+
+.viewer-text,
+.viewer-sheet {
+	width: min(100%, 62rem);
+	max-height: 100%;
+	overflow: auto;
+	margin: 0;
+	border-radius: var(--r-lg);
+	border: 1px solid rgb(255 255 255 / 0.1);
+	background: rgb(255 255 255 / 0.04);
+	box-shadow: 0 24px 70px rgb(0 0 0 / 0.45);
+}
+
+.viewer-text {
+	padding: 1.1rem 1.3rem;
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	line-height: 1.65;
+	color: #e6e6ee;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	tab-size: 2;
+}
+
+.viewer-sheet table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.78rem;
+	color: #e6e6ee;
+}
+
+.viewer-sheet th,
+.viewer-sheet td {
+	padding: 0.45rem 0.7rem;
+	text-align: left;
+	border-bottom: 1px solid rgb(255 255 255 / 0.08);
+	white-space: nowrap;
+}
+
+.viewer-sheet th {
+	position: sticky;
+	top: 0;
+	background: #1b1b24;
+	font-weight: 600;
+	color: #fff;
+}
+
+.viewer-sheet tbody tr:hover td {
+	background: rgb(255 255 255 / 0.04);
+}
+
+.viewer-fallback {
+	display: grid;
+	justify-items: center;
+	gap: 0.6rem;
+	padding: 2.5rem 3rem;
+	text-align: center;
+	color: #f0f0f5;
+	border-radius: var(--r-lg);
+	background: rgb(255 255 255 / 0.05);
+	border: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.viewer-fallback .muted {
+	color: rgb(255 255 255 / 0.55);
+}
+
+.viewer-fallback .btn {
+	margin-top: 0.5rem;
+}
+
+.viewer-status {
+	color: rgb(255 255 255 / 0.6);
+	font-size: 0.85rem;
+}
+
+.viewer-nav {
+	position: absolute;
+	top: 50%;
+	translate: 0 -50%;
+	display: grid;
+	place-items: center;
+	width: 2.6rem;
+	height: 2.6rem;
+	border-radius: 50%;
+	border: 1px solid rgb(255 255 255 / 0.14);
+	background: rgb(255 255 255 / 0.08);
+	color: #fff;
+	cursor: pointer;
+	transition:
+		background-color var(--fast) var(--ease),
+		transform var(--fast) var(--ease);
+}
+
+.viewer-nav:hover {
+	background: rgb(255 255 255 / 0.2);
+}
+
+.viewer-nav.prev {
+	left: 1rem;
+}
+
+.viewer-nav.next {
+	right: 1rem;
+}
+
+.viewer-nav.next svg {
+	rotate: 180deg;
+}
+
+.viewer-nav svg {
+	width: 1.2rem;
+	height: 1.2rem;
+}
+
+.viewer-foot {
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.55rem 0.95rem;
+	font-size: 0.72rem;
+	color: rgb(255 255 255 / 0.5);
+	border-top: 1px solid rgb(255 255 255 / 0.08);
+	background: color-mix(in srgb, #0b0b12 55%, transparent);
+}
+
+/* ==========================================================================
    Responsive
    ========================================================================== */
 
@@ -2563,12 +3006,30 @@ tr:focus-within .row-actions .icon-btn {
 	}
 }
 
-@media (max-width: 560px) {
-	/* Notes/Drive also lives in the sidebar and the command palette at this width. */
-	.top-actions > .seg:first-child {
-		display: none;
+@media (max-width: 900px) {
+	.viewer-stage {
+		padding: 1rem 0.75rem;
 	}
 
+	.viewer-nav {
+		width: 2.1rem;
+		height: 2.1rem;
+	}
+
+	.viewer-nav.prev {
+		left: 0.35rem;
+	}
+
+	.viewer-nav.next {
+		right: 0.35rem;
+	}
+
+	.viewer-sub {
+		display: none;
+	}
+}
+
+@media (max-width: 560px) {
 	.drive {
 		padding: 0.85rem 0.75rem 2rem;
 	}

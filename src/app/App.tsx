@@ -8,6 +8,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { DialogHost } from './components/Dialog';
 import { EditorPane } from './components/EditorPane';
 import { FileLibrary } from './components/FileLibrary';
+import { FileViewer } from './components/FileViewer';
 import {
 	IconAlert,
 	IconMoon,
@@ -47,6 +48,12 @@ function Shell() {
 		return () => window.removeEventListener('keydown', onKey);
 	}, [vault]);
 
+	const activeTitle = vault.activeNote?.title;
+	useEffect(() => {
+		document.title =
+			vault.appMode === 'drive' ? 'Drive · Vault' : activeTitle ? `${activeTitle} · Vault` : 'Vault';
+	}, [activeTitle, vault.appMode]);
+
 	return (
 		<div className="app-shell">
 			<header className="topbar">
@@ -84,22 +91,6 @@ function Shell() {
 					</div>
 				)}
 				<div className="top-actions">
-					<div className="seg">
-						<button
-							type="button"
-							className={vault.appMode === 'notes' ? 'active' : ''}
-							onClick={() => vault.setAppMode('notes')}
-						>
-							Notes
-						</button>
-						<button
-							type="button"
-							className={vault.appMode === 'drive' ? 'active' : ''}
-							onClick={() => vault.setAppMode('drive')}
-						>
-							Drive
-						</button>
-					</div>
 					{vault.appMode === 'notes' && (
 						<div className="seg">
 							{(['edit', 'split', 'preview'] as const).map((mode) => (
@@ -155,6 +146,7 @@ function Shell() {
 				<RightPane />
 			</div>
 			<CommandPalette />
+			<FileViewer />
 			<DialogHost />
 		</div>
 	);

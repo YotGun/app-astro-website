@@ -85,6 +85,50 @@ function remarkBlankRuns() {
 	};
 }
 
+/**
+ * Obsidian's `==highlight==` and `%%comment%%`, neither of which exists in
+ * CommonMark or GFM. Runs over text nodes so it cannot touch code or math.
+ */
+const INLINE_RE = /==([^=]+)==|%%([\s\S]+?)%%/g;
+
+function remarkObsidianInline() {
+	return (tree: unknown) => {
+		visit(
+			tree as never,
+			'text',
+			(
+				node: { value: string },
+				index: number | undefined,
+				parent: { type: string; children: Array<unknown> } | undefined,
+			) => {
+				if (!parent || index === undefined) return;
+				const pieces: Array<unknown> = [];
+				let start = 0;
+				let match: RegExpExecArray | null;
+				INLINE_RE.lastIndex = 0;
+				while ((match = INLINE_RE.exec(node.value))) {
+					const lead = node.value.slice(start, match.index);
+					if (lead) pieces.push({ type: 'text', value: lead });
+					if (match[1] !== undefined) {
+						pieces.push({
+							type: 'emphasis',
+							data: { hName: 'mark' },
+							children: [{ type: 'text', value: match[1] }],
+						});
+					}
+					// %%comments%% render as nothing at all, like Obsidian.
+					start = match.index + match[0].length;
+				}
+				if (!pieces.length) return;
+				const tail = node.value.slice(start);
+				if (tail) pieces.push({ type: 'text', value: tail });
+				parent.children.splice(index, 1, ...pieces);
+				return index + pieces.length;
+			},
+		);
+	};
+}
+
 const SOFT_BREAK_RE = /[\t ]*(?:\r?\n|\r)[\t ]*/g;
 
 /**
@@ -197,12 +241,16 @@ export function slugify(text: string): string {
 function resolveWiki(source: string, notes: NoteMeta[], files: VaultFile[]): string {
 	let text = source;
 	text = text.replace(/!\[\[([^\]]+)\]\]/g, (_, raw: string) => {
-		const name = String(raw).split('|')[0]!.trim();
+		const [target, ...rest] = String(raw).split('|');
+		const name = target!.trim();
 		const file = files.find(
 			(f) => f.name === name || f.name.toLowerCase() === name.toLowerCase(),
 		);
 		if (!file) return `*[missing: ${name}]*`;
-		return `[${file.name}](vault-embed://${file.id})`;
+		// Obsidian sizes embeds with |width or |widthxheight.
+		const dims = /^(\d+)(?:x(\d+))?$/.exec((rest.at(-1) ?? '').trim());
+		const query = dims ? `?w=${dims[1]}${dims[2] ? `&h=${dims[2]}` : ''}` : '';
+		return `[${file.name}](vault-embed://${file.id}${query})`;
 	});
 	text = text.replace(/\[\[([^\]]+)\]\]/g, (_, raw: string) => {
 		const [target, alias] = String(raw).split('|');
@@ -226,12 +274,16 @@ function hydrateMedia(html: string, files: VaultFile[]): string {
 			if (href.startsWith('vault-missing://')) {
 				return `<span class="wiki-missing">${label}</span>`;
 			}
-			const id = href.replace('vault-embed://', '');
+			const [id, query] = href.replace('vault-embed://', '').split('?');
 			const file = files.find((f) => f.id === id);
 			if (!file) return `<span class="wiki-missing">${label}</span>`;
 			const src = `/api/files/${file.id}/content`;
+			const params = new URLSearchParams(query ?? '');
+			const width = params.get('w');
+			const height = params.get('h');
+			const sizeAttrs = `${width ? ` width="${Number(width)}"` : ''}${height ? ` height="${Number(height)}"` : ''}`;
 			if (file.mime.startsWith('image/')) {
-				return `<img src="${src}" alt="${escapeAttr(file.name)}" loading="lazy" decoding="async" />`;
+				return `<img src="${src}" alt="${escapeAttr(file.name)}" loading="lazy" decoding="async"${sizeAttrs} />`;
 			}
 			if (file.mime.startsWith('video/')) {
 				return `<video class="embed-media" controls preload="metadata" src="${src}"></video>`;
@@ -274,6 +326,7 @@ const processor = unified()
 	.use(remarkMath)
 	.use(remarkBlankRuns)
 	.use(remarkCallouts)
+	.use(remarkObsidianInline)
 	.use(remarkSoftBreaks)
 	.use(remarkRehype)
 	.use(rehypeKatex)

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fileContentUrl } from '../api';
-import { extOf, fileKind, folderPath, formatBytes, formatDate } from '../format';
+import { extOf, fileKind, formatBytes, formatDate } from '../format';
 import { useVault } from '../VaultProvider';
 import type { Folder, LibraryFilter, VaultFile } from '../types';
 import { dialog } from './Dialog';
@@ -16,7 +16,15 @@ import {
 	IconUpload,
 	kindIcon,
 } from './Icons';
-import { Media } from './RightPane';
+
+const FILTERS: Array<[LibraryFilter, string]> = [
+	['all', 'All'],
+	['image', 'Images'],
+	['video', 'Video'],
+	['audio', 'Audio'],
+	['pdf', 'PDF'],
+	['other', 'Other'],
+];
 
 export function FileLibrary() {
 	const {
@@ -31,12 +39,12 @@ export function FileLibrary() {
 		selectedFileId,
 		selectFile,
 		selectNote,
+		openPreview,
+		rightOpen,
 		uploadFiles,
 		createFolder,
 		renameFolder,
 		deleteFolder,
-		renameFile,
-		moveFile,
 		deleteFile,
 		setAppMode,
 	} = useVault();
@@ -114,11 +122,25 @@ export function FileLibrary() {
 
 	if (appMode !== 'drive') return null;
 
-	const selected = files.find((f) => f.id === selectedFileId);
+	const visibleNotes = filter === 'all' ? childNotes.length : 0;
+	const itemCount = childFolders.length + childFiles.length + visibleNotes;
+
+	// With the details pane off-screen there is nowhere for a selection to show,
+	// so a single click has to open the viewer instead.
+	const chooseFile = (id: string) => {
+		selectFile(id);
+		if (!rightOpen || window.matchMedia('(max-width: 900px)').matches) openPreview(id);
+	};
 
 	return (
 		<section
 			className={`drive ${dragging ? 'dropping' : ''}`}
+			onMouseDown={(e) => {
+				// Clicking the empty canvas deselects, the way Drive does.
+				const target = e.target as HTMLElement;
+				if (target.closest('.library-card, .drive-table, .drive-toolbar, .drive-filters')) return;
+				selectFile(null);
+			}}
 			onDragOver={(e) => {
 				e.preventDefault();
 				setDragging(true);
@@ -195,16 +217,19 @@ export function FileLibrary() {
 				</div>
 			</div>
 			<div className="drive-filters">
-				{(['all', 'image', 'video', 'audio', 'pdf', 'other'] as const).map((key) => (
+				{FILTERS.map(([key, label]) => (
 					<button
 						key={key}
 						type="button"
 						className={filter === key ? 'active' : ''}
 						onClick={() => setFilter(key)}
 					>
-						{key}
+						{label}
 					</button>
 				))}
+				<span className="drive-count">
+					{itemCount} {itemCount === 1 ? 'item' : 'items'}
+				</span>
 				<label className="sort-label">
 					Sort
 					<select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
@@ -214,9 +239,6 @@ export function FileLibrary() {
 					</select>
 				</label>
 			</div>
-			<p className="drive-hint muted">
-				Paste an image to back it up here. Any file type is fine.
-			</p>
 			{driveLayout === 'grid' ? (
 				<div className="library-grid">
 					{childFolders.map((folder) => (
@@ -260,7 +282,8 @@ export function FileLibrary() {
 							key={file.id}
 							file={file}
 							selected={file.id === selectedFileId}
-							onSelect={() => selectFile(file.id)}
+							onSelect={() => chooseFile(file.id)}
+							onOpen={() => openPreview(file.id)}
 							onDelete={async () => {
 								const ok = await dialog.confirm(`Delete “${file.name}”?`, {
 									message: 'The file will be removed from storage permanently.',
@@ -348,9 +371,18 @@ export function FileLibrary() {
 						{childFiles.map((file) => {
 							const KindIcon = kindIcon(fileKind(file.mime, file.name));
 							return (
-								<tr key={file.id} className={selectedFileId === file.id ? 'selected' : ''}>
+								<tr
+									key={file.id}
+									className={selectedFileId === file.id ? 'selected' : ''}
+									onDoubleClick={() => openPreview(file.id)}
+								>
 									<td>
-										<button type="button" className="name-btn" onClick={() => selectFile(file.id)}>
+										<button
+											type="button"
+											className="name-btn"
+											title="Double-click to open"
+											onClick={() => chooseFile(file.id)}
+										>
 											<KindIcon /> {file.name}
 										</button>
 									</td>
@@ -389,7 +421,7 @@ export function FileLibrary() {
 					</tbody>
 				</table>
 			)}
-			{childFolders.length + childFiles.length + (filter === 'all' ? childNotes.length : 0) === 0 && (
+			{itemCount === 0 && (
 				<div className="empty-state empty-drive">
 					<span className="empty-glyph">
 						<IconUpload />
@@ -402,54 +434,6 @@ export function FileLibrary() {
 					</p>
 				</div>
 			)}
-			{selected && (
-				<div className="library-player">
-					<div className="viewer-head">
-						<span>{selected.name}</span>
-						<div className="viewer-actions">
-							<a className="chip" href={fileContentUrl(selected.id, true)}>
-								<IconDownload /> Download
-							</a>
-							<button
-								type="button"
-								className="chip"
-								onClick={async () => {
-									const name = await dialog.prompt('Rename file', selected.name);
-									if (name) void renameFile(selected.id, name);
-								}}
-							>
-								<IconPencil /> Rename
-							</button>
-							<button
-								type="button"
-								className="chip"
-								onClick={async () => {
-									const picked = await dialog.choose(
-										'Move to folder',
-										[
-											{ label: 'My Drive', value: null },
-											...folders.map((folder) => ({
-												label: folder.name,
-												value: folder.id,
-												hint: folderPath(folders, folder.id),
-											})),
-										],
-										{ message: `Choose a destination for “${selected.name}”.` },
-									);
-									if (picked !== undefined) void moveFile(selected.id, picked);
-								}}
-							>
-								<IconFolder /> Move
-							</button>
-						</div>
-					</div>
-					<Media file={selected} />
-					<p className="muted drive-file-meta">
-						{formatBytes(selected.size)} · {selected.mime || 'unknown type'} ·{' '}
-						{folderPath(folders, selected.folder_id)}
-					</p>
-				</div>
-			)}
 		</section>
 	);
 }
@@ -458,11 +442,13 @@ function FileCard({
 	file,
 	selected,
 	onSelect,
+	onOpen,
 	onDelete,
 }: {
 	file: VaultFile;
 	selected: boolean;
 	onSelect: () => void;
+	onOpen: () => void;
 	onDelete: () => void;
 }) {
 	const kind = fileKind(file.mime, file.name);
@@ -470,7 +456,11 @@ function FileCard({
 	const [previewFailed, setPreviewFailed] = useState(false);
 	const showPreview = !previewFailed && (kind === 'image' || kind === 'video');
 	return (
-		<article className={`library-card ${selected ? 'selected' : ''}`}>
+		<article
+			className={`library-card ${selected ? 'selected' : ''}`}
+			onDoubleClick={onOpen}
+			title="Double-click to open"
+		>
 			<button type="button" className="thumb" onClick={onSelect}>
 				{showPreview && kind === 'image' ? (
 					<img
@@ -496,7 +486,7 @@ function FileCard({
 			<div className="library-meta">
 				<strong title={file.name}>{file.name}</strong>
 				<small>
-					{formatBytes(file.size)} · {kind}
+					{formatBytes(file.size)} · {kind === 'other' ? extOf(file.name).toUpperCase() : kind}
 				</small>
 			</div>
 			<div className="card-actions">

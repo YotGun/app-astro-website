@@ -48,6 +48,13 @@ export const IconLibrary = icon(
 	'<rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/>',
 );
 export const IconClose = icon('<path d="M6 6l12 12M18 6 6 18"/>');
+export const IconChevron = icon('<path d="m15 5-7 7 7 7"/>');
+export const IconInfo = icon(
+	'<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
+);
+export const IconExpand = icon(
+	'<path d="M9 4H4v5"/><path d="M4 4l6 6"/><path d="M15 20h5v-5"/><path d="m20 20-6-6"/>',
+);
 export const IconCheck = icon('<path d="m5 12 5 5L20 7"/>');
 export const IconFile = icon(
 	'<path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/>',

@@ -29,6 +29,8 @@ type VaultContextValue = {
 	appMode: AppMode;
 	driveFolderId: string | null;
 	driveLayout: DriveLayout;
+	previewFileId: string | null;
+	openPreview: (id: string | null) => void;
 	paletteOpen: boolean;
 	query: string;
 	searchHits: Set<string> | null;
@@ -94,6 +96,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		() => (typeof localStorage !== 'undefined' && localStorage.getItem('vault-mode') === 'drive' ? 'drive' : 'notes'),
 	);
 	const [driveFolderId, setDriveFolderId] = useState<string | null>(null);
+	const [previewFileId, setPreviewFileId] = useState<string | null>(null);
 	const [driveLayout, setDriveLayoutState] = useState<DriveLayout>(
 		() => (typeof localStorage !== 'undefined' && localStorage.getItem('vault-drive-layout') === 'list' ? 'list' : 'grid'),
 	);
@@ -439,8 +442,17 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 	const deleteFile = useCallback(async (id: string) => {
 		await api.deleteFile(id);
 		setFiles((prev) => prev.filter((f) => f.id !== id));
+		setPreviewFileId((current) => (current === id ? null : current));
 		if (selectedFileId === id) setSelectedFileId(null);
 	}, [selectedFileId]);
+
+	// Leaving a folder drops whatever was selected inside it, so a stale
+	// preview can never outlive the folder it came from.
+	const changeDriveFolder = useCallback((id: string | null) => {
+		setDriveFolderId(id);
+		setSelectedFileId(null);
+		setPreviewFileId(null);
+	}, []);
 
 	const activeNote = useMemo<Note | null>(() => {
 		if (!selectedNoteId) return null;
@@ -464,6 +476,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		appMode,
 		driveFolderId,
 		driveLayout,
+		previewFileId,
+		openPreview: setPreviewFileId,
 		paletteOpen,
 		query,
 		searchHits,
@@ -488,7 +502,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 			setLibraryOpen(mode === 'drive');
 			localStorage.setItem('vault-mode', mode);
 		},
-		setDriveFolderId,
+		setDriveFolderId: changeDriveFolder,
 		setDriveLayout: (layout: DriveLayout) => {
 			setDriveLayoutState(layout);
 			localStorage.setItem('vault-drive-layout', layout);
