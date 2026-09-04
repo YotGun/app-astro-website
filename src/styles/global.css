@@ -1163,13 +1163,6 @@ kbd {
 	letter-spacing: -0.01em;
 }
 
-/* Obsidian rules off its two top levels; the rest rely on size alone. */
-.prose h1,
-.prose h2 {
-	padding-bottom: 0.2em;
-	border-bottom: 1px solid var(--border);
-}
-
 .prose h3 {
 	font-size: 1.28em;
 }
